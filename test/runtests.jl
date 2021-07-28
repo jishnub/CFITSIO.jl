@@ -1,5 +1,6 @@
 using CFITSIO
 using Test
+using BenchmarkTools
 
 
 # `create_test_file` : Create a simple FITS file for testing, with the
@@ -45,7 +46,7 @@ function writehealpix(filename, pixels, nside, ordering, coordsys)
         tform = "1E"
     elseif eltype(pixels) == Float64
         tform = "1D"
-    end 
+    end
 
     file = fits_create_file("!"*filename)
     try
@@ -61,7 +62,7 @@ function writehealpix(filename, pixels, nside, ordering, coordsys)
         fits_write_col(file, 1, 1, 1, pixels)
     finally
         fits_close_file(file)
-    end 
+    end
 end
 
 function readhealpix(filename)
@@ -174,6 +175,19 @@ end
                 @test occursin(r"Error message"i, errstr)
             end
         end
+    end
+
+    @testset "size" begin
+        filename = tempname()
+        f = fits_clobber_file(filename)
+        a = ones(2,2)
+        fits_create_img(f, eltype(a), [size(a)...])
+        fits_write_pix(f, a)
+        close(f)
+        f = fits_open_file(filename, 0)
+        @test fits_get_img_size(f, Val(2)) == (2,2)
+        @test (BenchmarkTools.@ballocated fits_get_img_size($f, Val(2))) == 0
+        close(f)
     end
 
 end
