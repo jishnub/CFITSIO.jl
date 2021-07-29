@@ -1023,8 +1023,35 @@ function fits_read_pix(
     anynull[]
 end
 
+# This method accepts a tuple of pixels instead of a vector
+function fits_read_pix(
+    f::FITSFile,
+    fpixel::NTuple{N,Integer},
+    nelements::Int,
+    data::StridedArray{T},
+) where {T,N}
+    anynull = Ref{Cint}(0)
+    status = Ref{Cint}(0)
+    fpixelr = Ref(convert(NTuple{N,Int64}, fpixel))
+    ccall(
+        (:ffgpxvll, libcfitsio),
+        Cint,
+        (Ptr{Cvoid}, Cint, Ptr{NTuple{N,Int64}}, Int64, Ptr{Cvoid}, Ptr{Cvoid}, Ref{Cint}, Ref{Cint}),
+        f.ptr,
+        cfitsio_typecode(T),
+        fpixelr,
+        nelements,
+        C_NULL,
+        data,
+        anynull,
+        status,
+    )
+    fits_assert_ok(status[])
+    anynull[]
+end
+
 function fits_read_pix(f::FITSFile, data::StridedArray)
-    fits_read_pix(f, ones(Int64, length(size(data))), length(data), data)
+    fits_read_pix(f, ntuple(_ -> 1, Val(ndims(data))), length(data), data)
 end
 
 function fits_read_subset(
@@ -1056,6 +1083,48 @@ function fits_read_subset(
         Vector{Clong}(fpixel),
         Vector{Clong}(lpixel),
         Vector{Clong}(inc),
+        C_NULL,
+        data,
+        anynull,
+        status,
+    )
+    fits_assert_ok(status[])
+    anynull[]
+end
+
+function fits_read_subset(
+    f::FITSFile,
+    fpixel::NTuple{N,Integer},
+    lpixel::NTuple{N,Integer},
+    inc::NTuple{N,Integer},
+    data::StridedArray{T},
+    ) where {N,T}
+
+    anynull = Ref{Cint}(0)
+    status = Ref{Cint}(0)
+    fpixelr, lpixelr, incr  = map((fpixel, lpixel, inc)) do x
+        Ref(convert(NTuple{N,Clong}, x))
+    end
+
+    ccall(
+        (:ffgsv, libcfitsio),
+        Cint,
+        (
+            Ptr{Cvoid},
+            Cint,
+            Ptr{NTuple{N,Clong}},
+            Ptr{NTuple{N,Clong}},
+            Ptr{NTuple{N,Clong}},
+            Ptr{Cvoid},
+            Ptr{Cvoid},
+            Ref{Cint},
+            Ref{Cint},
+        ),
+        f.ptr,
+        cfitsio_typecode(T),
+        fpixelr,
+        lpixelr,
+        incr,
         C_NULL,
         data,
         anynull,
