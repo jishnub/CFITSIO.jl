@@ -1,5 +1,10 @@
 using CFITSIO
 using Test
+using Aqua
+
+@testset "project quality" begin
+    Aqua.test_all(CFITSIO)
+end
 
 function tempfitsfile(fn)
     mktempdir() do dir
@@ -325,11 +330,11 @@ end
         end
     end
 
-    @testset "allocations" begin
+    @testset "tuple vs vector arguments" begin
         filename = tempname()
         try
             f = fits_clobber_file(filename)
-            a = ones(2,2)
+            a = Float64[1 3; 2 4]
             b = similar(a); c = similar(a);
 
             @testset "create" begin
