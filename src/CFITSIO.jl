@@ -212,6 +212,11 @@ fits_assert_isascii(str::String) =
 fits_get_version() = ccall((:ffvers, libcfitsio), Cfloat, (Ref{Cfloat},), 0.0)
 
 # -----------------------------------------------------------------------------
+# Utility function
+
+onest(::Type{T}, n) where {T} = ntuple(_ -> one(T), n)
+
+# -----------------------------------------------------------------------------
 # file access & info functions
 
 """
@@ -929,7 +934,24 @@ function fits_create_img(f::FITSFile, ::Type{T}, naxes::Vector{S}) where {T,S<:I
         f.ptr,
         bitpix_from_type(T),
         length(naxes),
-        Vector{Int64}(naxes),
+        convert(Vector{Int64}, naxes),
+        status,
+    )
+    fits_assert_ok(status[])
+end
+
+# This method accepts a tuple of pixels instead of a vector
+function fits_create_img(f::FITSFile, ::Type{T}, naxes::NTuple{N,Integer}) where {T,N}
+    status = Ref{Cint}(0)
+    naxesr = Ref(convert(NTuple{N,Int64}, naxes))
+    ccall(
+        (:ffcrimll, libcfitsio),
+        Cint,
+        (Ptr{Cvoid}, Cint, Cint, Ptr{NTuple{N,Int64}}, Ref{Cint}),
+        f.ptr,
+        bitpix_from_type(T),
+        N,
+        naxesr,
         status,
     )
     fits_assert_ok(status[])
@@ -955,7 +977,31 @@ function fits_write_pix(
         (Ptr{Cvoid}, Cint, Ptr{Int64}, Int64, Ptr{Cvoid}, Ref{Cint}),
         f.ptr,
         cfitsio_typecode(T),
-        Vector{Int64}(fpixel),
+        convert(Vector{Int64}, fpixel),
+        nelements,
+        data,
+        status,
+    )
+    fits_assert_ok(status[])
+end
+
+# This method accepts a tuple of pixels instead of a vector
+function fits_write_pix(
+    f::FITSFile,
+    fpixel::NTuple{N,Integer},
+    nelements::Integer,
+    data::StridedArray{T},
+) where {N,T}
+
+    status = Ref{Cint}(0)
+    fpixelr = Ref(convert(NTuple{N,Int64}, fpixel))
+    ccall(
+        (:ffppxll, libcfitsio),
+        Cint,
+        (Ptr{Cvoid}, Cint, Ptr{NTuple{N,Int64}}, Int64, Ptr{Cvoid}, Ref{Cint}),
+        f.ptr,
+        cfitsio_typecode(T),
+        fpixelr,
         nelements,
         data,
         status,
@@ -964,7 +1010,7 @@ function fits_write_pix(
 end
 
 function fits_write_pix(f::FITSFile, data::StridedArray)
-    fits_write_pix(f, ones(Int64, length(size(data))), length(data), data)
+    fits_write_pix(f, onest(Int64, ndims(data)), length(data), data)
 end
 
 function fits_read_pix(
@@ -982,7 +1028,7 @@ function fits_read_pix(
         (Ptr{Cvoid}, Cint, Ptr{Int64}, Int64, Ref{Cvoid}, Ptr{Cvoid}, Ref{Cint}, Ref{Cint}),
         f.ptr,
         cfitsio_typecode(T),
-        Vector{Int64}(fpixel),
+        convert(Vector{Int64}, fpixel),
         nelements,
         nullval,
         data,
@@ -1012,7 +1058,7 @@ function fits_read_pix(
         (Ptr{Cvoid}, Cint, Ptr{Int64}, Int64, Ptr{Cvoid}, Ptr{Cvoid}, Ref{Cint}, Ref{Cint}),
         f.ptr,
         cfitsio_typecode(T),
-        Vector{Int64}(fpixel),
+        convert(Vector{Int64}, fpixel),
         nelements,
         C_NULL,
         data,
@@ -1051,7 +1097,7 @@ function fits_read_pix(
 end
 
 function fits_read_pix(f::FITSFile, data::StridedArray)
-    fits_read_pix(f, ntuple(_ -> 1, Val(ndims(data))), length(data), data)
+    fits_read_pix(f, onest(Int64, ndims(data)), length(data), data)
 end
 
 function fits_read_subset(
@@ -1080,9 +1126,9 @@ function fits_read_subset(
         ),
         f.ptr,
         cfitsio_typecode(T),
-        Vector{Clong}(fpixel),
-        Vector{Clong}(lpixel),
-        Vector{Clong}(inc),
+        convert(Vector{Clong}, fpixel),
+        convert(Vector{Clong}, lpixel),
+        convert(Vector{Clong}, inc),
         C_NULL,
         data,
         anynull,
