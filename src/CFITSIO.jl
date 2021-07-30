@@ -230,6 +230,7 @@ fits_get_version() = ccall((:ffvers, libcfitsio), Cfloat, (Ref{Cfloat},), 0.0)
 # -----------------------------------------------------------------------------
 # Utility function
 
+zerost(::Type{T}, n) where {T} = ntuple(_ -> zero(T), n)
 onest(::Type{T}, n) where {T} = ntuple(_ -> one(T), n)
 
 # -----------------------------------------------------------------------------
@@ -1072,6 +1073,18 @@ Write `nelements` pixels from `data` into the FITS file starting from the pixel 
 
 See also: [`fits_write_pixnull`](@ref)
 """
+fits_create_img(f::FITSFile, a::AbstractArray) = fits_create_img(f, eltype(a), [size(a)...])
+
+"""
+    fits_write_pix(f::FITSFile, fpixel::Vector{<:Integer}, nelements::Integer, data::StridedArray)
+
+Write `nelements` pixels from `data` into the FITS file starting from the pixel `fpixel`.
+
+!!! note
+    `data` needs to be stored contiguously in memory.
+
+See also: [`fits_write_pixnull`](@ref)
+"""
 function fits_write_pix(
     f::FITSFile,
     fpixel::Vector{<:Integer},
@@ -1108,7 +1121,9 @@ function fits_write_pix(
     fpixel::NTuple{N,Integer},
     nelements::Integer,
     data::StridedArray,
-) where {N}
+    ) where {N}
+
+    fits_assert_open(f)
 
     fits_assert_open(f)
     status = Ref{Cint}(0)
@@ -1901,7 +1916,7 @@ fits_get_coltype
     end
 
     function fits_get_img_size(f::FITSFile, ::Val{N}) where {N}
-        naxes = Ref(ntuple(_ -> zero($T), Val(N)))
+        naxes = Ref(zerost($T, N))
         status = Ref{Cint}(0)
         ccall(
             ($ffgisz, libcfitsio),
